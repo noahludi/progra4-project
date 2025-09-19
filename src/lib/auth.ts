@@ -1,13 +1,10 @@
 import { cookies } from 'next/headers'
 import bcrypt from 'bcryptjs'
 import { sign, verify, type Secret, type SignOptions, type JwtPayload } from 'jsonwebtoken'
+import { Types } from 'mongoose'
 import { dbConnect } from './db'
 import User from '@/models/User'
 
-/**
- * Tipos compatibles con jsonwebtoken v9.
- * No hacemos throws en import-time para no romper tests/build.
- */
 const JWT_SECRET: Secret = (process.env.JWT_SECRET ?? '') as Secret
 const JWT_EXPIRES = (process.env.JWT_EXPIRES ?? '7d') as unknown as SignOptions['expiresIn']
 
@@ -54,10 +51,16 @@ export async function getCurrentUser() {
     if (!payload?.uid) return null
 
     await dbConnect()
-    const u = await User.findById(payload.uid).lean()
+
+    // Tipamos el resultado de lean para evitar el union raro
+    type UserLean = { _id: Types.ObjectId; email: string; name?: string }
+    const u = await User.findById(payload.uid)
+      .select({ email: 1, name: 1 })
+      .lean<UserLean>()
+
     if (!u) return null
 
-    return { id: String(u._id), email: u.email, name: (u as any).name as string | undefined }
+    return { id: u._id.toString(), email: u.email, name: u.name }
   } catch {
     return null
   }
