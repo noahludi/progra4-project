@@ -1,73 +1,110 @@
-// src/components/ReviewList.tsx
 'use client'
-import { useEffect, useState } from 'react'
 
-type Review = {
+import { useEffect, useMemo, useState } from 'react'
+import VoteButtons from './VoteButtons'
+import ReviewForm from './ReviewForm'
+import { useSession } from '@/lib/useSession'
+
+type Row = {
   id: string
-  user: { id: string; name: string }
-  rating: number
+  user: string
+  bookId: string
+  title: string
   content: string
-  upVotes: number
-  downVotes: number
-  score: number
-  createdAt: string
+  rating: number
+  createdAt?: string
 }
 
-export default function ReviewList({
-  bookId,
-  refreshKey = 0,
-}: {
-  bookId: string
-  refreshKey?: number
-}) {
-  const [items, setItems] = useState<Review[]>([])
-  const [sort, setSort] = useState<'best' | 'new' | 'rating'>('best')
+export default function ReviewList({ bookId }: { bookId: string }) {
+  const { user } = useSession()
+  const [items, setItems] = useState<Row[]>([])
+  const [loading, setLoading] = useState(true)
+  const [editingId, setEditingId] = useState<string | null>(null)
 
-  async function load() {
-    const res = await fetch(`/api/books/${bookId}/reviews?sort=${sort}`, { cache: 'no-store' })
-    const data = await res.json()
-    setItems(data.items ?? [])
+  const isOwner = (r: Row) => user && r.user === user.id
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const r = await fetch(`/api/reviews?bookId=${encodeURIComponent(bookId)}`, { cache: 'no-store' })
+      const j = await r.json()
+      setItems(j.items ?? [])
+    } finally {
+      setLoading(false)
+    }
   }
 
-  useEffect(() => { load() }, [sort, refreshKey])
+  useEffect(() => { load() }, [bookId])
 
-  async function vote(id: string, value: 1 | -1) {
-    await fetch(`/api/reviews/${id}/vote`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value }),
-    })
-    await load()
+  async function remove(id: string) {
+    const prev = items
+    setItems(prev.filter(x => x.id !== id))
+    const resp = await fetch(`/api/reviews/${id}`, { method: 'DELETE' })
+    if (!resp.ok) {
+      setItems(prev) // rollback
+      if (resp.status === 401) window.location.href = `/login?next=${encodeURIComponent(location.pathname)}`
+    }
   }
+
+  const editing = useMemo(() => items.find(i => i.id === editingId), [items, editingId])
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-gray-500">Ordenar:</span>
-        <select value={sort} onChange={e=>setSort(e.target.value as any)} className="border rounded p-1">
-          <option value="best">Mejores</option>
-          <option value="new">Más nuevas</option>
-          <option value="rating">Mayor rating</option>
-        </select>
-      </div>
+    <div className="space-y-4">
+      {loading && <p className="text-sm text-gray-600">Cargando reseñas…</p>}
 
-      {items.length === 0 && <div className="text-gray-500">Sé el primero en reseñar ✍️</div>}
+      {!loading && items.length === 0 && (
+        <p className="text-sm text-gray-600">No hay reseñas aún.</p>
+      )}
 
-      {items.map(r => (
-        <div key={r.id} className="border rounded-xl p-4">
-          <div className="flex items-center justify-between">
-            <div className="font-medium">{r.user.name}</div>
-            <div className="text-yellow-500">{'★'.repeat(r.rating)}{'☆'.repeat(5-r.rating)}</div>
-          </div>
-          <p className="mt-2 whitespace-pre-wrap">{r.content}</p>
-          <div className="mt-3 flex items-center gap-3 text-sm">
-            <button onClick={()=>vote(r.id, 1)} className="px-2 py-1 rounded border">👍 {r.upVotes}</button>
-            <button onClick={()=>vote(r.id, -1)} className="px-2 py-1 rounded border">👎 {r.downVotes}</button>
-            <span className="text-gray-500">Score: {r.score.toFixed(3)}</span>
-            <span className="text-gray-400">{new Date(r.createdAt).toLocaleString()}</span>
+      <ul className="space-y-3">
+        {items.map(r => (
+          <li key={r.id} className="rounded border p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="font-semibold">{r.title}</h3>
+                <p className="text-sm text-gray-600 whitespace-pre-wrap break-words">{r.content}</p>
+                <p className="text-xs text-gray-500 mt-1">⭐ {r.rating}/5</p>
+              </div>
+
+              <VoteButtons reviewId={r.id} />
+            </div>
+
+            {isOwner(r) && (
+              <div className="mt-3 flex gap-2">
+                <button
+                  className="rounded border px-3 py-1 text-sm"
+                  onClick={() => setEditingId(r.id)}
+                >
+                  Editar
+                </button>
+                <button
+                  className="rounded border px-3 py-1 text-sm text-red-600"
+                  onClick={() => remove(r.id)}
+                >
+                  Eliminar
+                </button>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      {editing && (
+        <div className="rounded border p-4">
+          <h4 className="mb-2 font-medium">Editar reseña</h4>
+          <ReviewForm
+            mode="edit"
+            bookId={bookId}
+            initial={{ id: editing.id, title: editing.title, content: editing.content, rating: editing.rating } as any}
+            onSaved={async () => { setEditingId(null); await load() }}
+          />
+          <div className="mt-2">
+            <button className="text-sm text-gray-600 underline" onClick={() => setEditingId(null)}>
+              Cancelar
+            </button>
           </div>
         </div>
-      ))}
+      )}
     </div>
   )
 }

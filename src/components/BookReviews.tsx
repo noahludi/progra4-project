@@ -1,20 +1,27 @@
-    'use client'
+'use client'
 
-import { useState } from 'react'
-import ReviewForm from '@/components/ReviewForm'
-import ReviewList from '@/components/ReviewList'
+import { useSession } from '@/lib/useSession'
+import ReviewForm from './ReviewForm'
+import ReviewList from './ReviewList'
 
 export default function BookReviews({ bookId }: { bookId: string }) {
-  const [refreshKey, setRefreshKey] = useState(0)
+  const { user, loading } = useSession()
 
   return (
     <section className="space-y-4">
       <h2 className="text-xl font-semibold">Reseñas</h2>
-      <ReviewForm
-        bookId={bookId}
-        onCreated={() => setRefreshKey(k => k + 1)}
-      />
-      <ReviewList bookId={bookId} refreshKey={refreshKey} />
+
+      {!loading && !user && (
+        <p className="text-sm text-gray-600">
+          Tenés que <a href={`/login?next=${encodeURIComponent(`/book/${bookId}`)}`} className="text-blue-600">iniciar sesión</a> para escribir o votar reseñas.
+        </p>
+      )}
+
+      {user && (
+        <ReviewForm bookId={bookId} onSaved={() => { /* ReviewList se actualiza al refresh */ }} />
+      )}
+
+      <ReviewList bookId={bookId} />
     </section>
   )
 }

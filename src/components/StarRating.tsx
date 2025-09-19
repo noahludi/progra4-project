@@ -1,11 +1,14 @@
 'use client'
 import { useState } from 'react'
 
-export function StarRating({ value=0, onChange }: { value?: number; onChange?: (n:number)=>void }) {
+export function StarRating({
+  value = 0,
+  onChange,
+}: { value?: number; onChange?: (n: number) => void }) {
   const [hover, setHover] = useState<number | null>(null)
   return (
     <div role="radiogroup" aria-label="Calificación" className="inline-flex">
-      {[1,2,3,4,5].map(n => (
+      {[1, 2, 3, 4, 5].map((n) => (
         <button
           key={n}
           type="button"
@@ -23,3 +26,5 @@ export function StarRating({ value=0, onChange }: { value?: number; onChange?: (
     </div>
   )
 }
+
+export default StarRating
