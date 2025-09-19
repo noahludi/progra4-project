@@ -9,11 +9,8 @@ import { getCurrentUser } from '@/lib/auth'
 export const runtime = 'nodejs'
 
 // PATCH /api/reviews/[id]
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Record<string, string | string[]> }
-) {
-  const raw = params.id
+export async function PATCH(req: NextRequest, ctx: any) {
+  const raw = ctx?.params?.id as string | string[] | undefined
   const id = Array.isArray(raw) ? raw[0] : raw
   if (!id || !isValidObjectId(id)) {
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
@@ -30,7 +27,6 @@ export async function PATCH(
     return NextResponse.json({ error: 'Body must be valid JSON' }, { status: 400 })
   }
 
-  // permitimos editar solo estos campos
   const data = reviewSchema.pick({ title: true, content: true, rating: true }).partial().parse(body)
 
   const r = await Review.findById(id)
@@ -43,11 +39,8 @@ export async function PATCH(
 }
 
 // DELETE /api/reviews/[id]
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Record<string, string | string[]> }
-) {
-  const raw = params.id
+export async function DELETE(_req: NextRequest, ctx: any) {
+  const raw = ctx?.params?.id as string | string[] | undefined
   const id = Array.isArray(raw) ? raw[0] : raw
   if (!id || !isValidObjectId(id)) {
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
