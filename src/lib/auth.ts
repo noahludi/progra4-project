@@ -1,12 +1,13 @@
-import jwt from 'jsonwebtoken'
-import bcrypt from 'bcryptjs'
 import { cookies } from 'next/headers'
+import bcrypt from 'bcryptjs'
+import { sign, verify, type Secret, type SignOptions } from 'jsonwebtoken'
 import { dbConnect } from './db'
 import User from '@/models/User'
 
-const JWT_SECRET = process.env.JWT_SECRET!
-const JWT_EXPIRES = process.env.JWT_EXPIRES || '7d'
+const JWT_SECRET: Secret = process.env.JWT_SECRET as Secret
+const JWT_EXPIRES = process.env.JWT_EXPIRES ?? '7d'
 
+// ---------- helpers ----------
 export async function hashPassword(plain: string) {
   const salt = await bcrypt.genSalt(10)
   return bcrypt.hash(plain, salt)
@@ -15,8 +16,9 @@ export async function comparePassword(plain: string, hash: string) {
   return bcrypt.compare(plain, hash)
 }
 
-export function signToken(payload: any) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES })
+export function signToken(payload: object, opts: SignOptions = {}) {
+  // Al pasar Secret + SignOptions tipados, TS elige la sobrecarga correcta
+  return sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES, ...opts })
 }
 
 export async function setAuthCookie(token: string) {
@@ -32,7 +34,7 @@ export async function setAuthCookie(token: string) {
 
 export async function clearAuthCookie() {
   const store = await cookies()
-  store.set('token', '', { httpOnly: true, expires: new Date(0), path: '/' })
+  store.set('token', '', { httpOnly: true, path: '/', expires: new Date(0) })
 }
 
 export async function getCurrentUser() {
@@ -40,9 +42,9 @@ export async function getCurrentUser() {
   const token = store.get('token')?.value
   if (!token) return null
   try {
-    const { uid } = jwt.verify(token, JWT_SECRET) as any
+    const payload = verify(token, JWT_SECRET) as any
     await dbConnect()
-    const u = await User.findById(uid).lean()
+    const u = await User.findById(payload.uid).lean()
     if (!u) return null
     return { id: String(u._id), email: u.email, name: u.name as string | undefined }
   } catch {
